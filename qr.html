@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Central Kitchen 1980</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #000;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: Cairo, sans-serif;
+    }
+    #status {
+      text-align: center;
+      color: #00c9ff;
+      font-size: 16px;
+      font-weight: 700;
+      padding: 20px;
+    }
+    #status .icon { font-size: 48px; margin-bottom: 14px; }
+    #status .err { color: #ff6b6b; font-size: 14px; margin-top: 8px; }
+    #viewer img {
+      max-width: 100vw;
+      max-height: 100vh;
+      object-fit: contain;
+      display: block;
+    }
+    #footer {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      background: rgba(0,0,0,.75);
+      padding: 8px;
+      text-align: center;
+      color: rgba(255,255,255,.4);
+      font-size: 11px;
+      font-family: Cairo, sans-serif;
+    }
+  </style>
+</head>
+<body>
+
+<div id="status">
+  <div class="icon">⏳</div>
+  <div>جاري تحميل الصورة...</div>
+</div>
+<div id="viewer" style="display:none;"></div>
+<div id="footer">Central Kitchen 1980</div>
+
+<!-- Firebase -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
+<script>
+  // ── Firebase init ──
+  firebase.initializeApp({
+    apiKey: "AIzaSyAaERjbUSKqb_oTgce7TiH6PyGsG08QoTM",
+    authDomain: "center-kitchen.firebaseapp.com",
+    projectId: "center-kitchen",
+    storageBucket: "center-kitchen.firebasestorage.app",
+    messagingSenderId: "426328007122",
+    appId: "1:426328007122:web:2099092821b20f11a9e80b"
+  });
+  var db = firebase.firestore();
+
+  // ── اجيب الـ ID من الـ URL ──
+  var params = new URLSearchParams(location.search);
+  var qrId = params.get('id');
+
+  var statusEl = document.getElementById('status');
+  var viewerEl = document.getElementById('viewer');
+
+  function showError(msg) {
+    statusEl.innerHTML =
+      '<div class="icon">❌</div>' +
+      '<div style="color:#ff6b6b;">' + msg + '</div>';
+  }
+
+  if (!qrId) {
+    showError('رابط غير صحيح — مفيش ID');
+  } else {
+    db.collection('qr_photos').doc(qrId).get()
+      .then(function(snap) {
+        if (snap.exists && snap.data().img) {
+          viewerEl.innerHTML = '<img src="' + snap.data().img + '" alt="product">';
+          viewerEl.style.display = 'block';
+          statusEl.style.display = 'none';
+        } else {
+          showError('الصورة مش موجودة أو اتمسحت');
+        }
+      })
+      .catch(function(err) {
+        showError('مشكلة في تحميل الصورة<br><span class="err">' + (err.message || '') + '</span>');
+      });
+  }
+</script>
+</body>
+</html>

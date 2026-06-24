@@ -1,0 +1,8 @@
+{
+  "name": "Central Kitchen 1980",
+  "short_name": "CK1980",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#0a2f4a",
+  "theme_color": "#0a2f4a"
+}

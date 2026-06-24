@@ -1,0 +1,24 @@
+[build]
+  publish = "."
+
+# تعطيل أي معالجة/تحسين تلقائي لملفات الموقع بعد الرفع (Asset Optimization).
+# الموقع ده ملف index.html واحد كبير فيه كود JS مكتوب جوا <script> مباشرة (inline)
+# وميزة "Minify/Bundle JS" بتاعة Netlify معروف عنها إنها بتكسر هذا النوع من الكود
+# لبعض الزوار (حسب الكاش/السيرفر اللي بيوصلهم) من غير أي رسالة خطأ واضحة.
+# تعطيلها هنا يضمن إن نفس الملف اللي اترفع هو نفسه اللي بيوصل للمستخدم بالظبط.
+[build.processing]
+  skip_processing = true
+
+[build.processing.css]
+  bundle = false
+  minify = false
+
+[build.processing.js]
+  bundle = false
+  minify = false
+
+[build.processing.html]
+  pretty_urls = false
+
+[build.processing.images]
+  compress = false
