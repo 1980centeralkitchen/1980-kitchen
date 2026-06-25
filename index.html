@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
@@ -1127,6 +1128,13 @@ var _CAIRO_MONTHS = ['يناير','فبراير','مارس','أبريل','ماي
 function _toCairo(dateStr){
   // نعامل كل التواريخ كـ local time مباشرة — بدون أي تحويل
   // لأن localISOString() بتحفظ Cairo time وde Date() بيقراه صح
+  // ── Firestore Timestamp normalization ──
+  if(dateStr && typeof dateStr === 'object'){
+    // Firestore Timestamp: { seconds, nanoseconds }
+    if(typeof dateStr.toMillis === 'function') dateStr = new Date(dateStr.toMillis()).toISOString();
+    else if(typeof dateStr.seconds === 'number') dateStr = new Date(dateStr.seconds * 1000).toISOString();
+    else if(dateStr instanceof Date) dateStr = dateStr.toISOString();
+  }
   var d = new Date(dateStr);
   if(isNaN(d.getTime())) return null;
   return {
@@ -1542,7 +1550,15 @@ async function loadSharedHistory(){
     // ✅ اقرأ كل الطلبيات من collection مستقلة — كل doc = طلبية واحدة
     var snap = await db.collection('orders').get();
     var shared = [];
-    snap.forEach(function(doc){ shared.push(doc.data()); });
+    snap.forEach(function(doc){
+      var o = doc.data();
+      // ── normalize date لو Firestore Timestamp ──
+      if(o.date && typeof o.date === 'object'){
+        if(typeof o.date.toMillis === 'function') o.date = new Date(o.date.toMillis()).toISOString().slice(0,19);
+        else if(typeof o.date.seconds === 'number') o.date = new Date(o.date.seconds*1000).toISOString().slice(0,19);
+      }
+      shared.push(o);
+    });
     if(!Array.isArray(orderHistory)) orderHistory = [];
     // إزالة أي طلبية محذوفة من القائمة المحلية
     orderHistory = orderHistory.filter(function(o){ return deletedOrderIds.indexOf(o.id)===-1; });
@@ -1559,8 +1575,21 @@ async function loadSharedHistory(){
     orderHistory.sort(function(a,b){ return new Date(b.date) - new Date(a.date); });
     localStorage.setItem('ci3_history', JSON.stringify(orderHistory));
     if(hasLocal){ saveSharedHistory(); }
-    if(changed){ updateStats(); renderHist(); }
+    if(changed){ updateStats(); _safeRerenderHist(); }
   }catch(e){ console.log('firebase load error',e); }
+}
+
+// ✅ إعادة بناء السجل بأمان: بنحافظ على موضع السكرول
+// عشان ال re-render الدوري (كل 20 ثانية) ما يصفّرش سكرول المستخدم وهو مفتح السجل
+function _safeRerenderHist(){
+  var listEl = document.getElementById('histList');
+  var scrollEl = listEl;
+  while(scrollEl && scrollEl.scrollHeight <= scrollEl.clientHeight && scrollEl !== document.body){
+    scrollEl = scrollEl.parentElement;
+  }
+  var scrollTop = scrollEl ? scrollEl.scrollTop : 0;
+  renderHist();
+  if(scrollEl) scrollEl.scrollTop = scrollTop;
 }
 
 setInterval(loadSharedHistory, 20000);
@@ -1700,12 +1729,37 @@ async function loadInventoryFromFirebase(){
       db.collection('cold_storage').doc('inventory').set({ list: items, deleted: deletedItemIds, deletedNames: deletedItemNames });
       updateStats();
       renderInv();
-      renderOrder();
+      _safeRerenderOrder();
       console.log('✅ inventory synced from firebase');
+    } else {
+      // ✅ مفيش تغيير فعلي في المخزون — مفيش داعي نعيد بناء قائمة الطلب
+      // (ده كان السبب اللي بيمسح الكميات المكتوبة ويصفّر السكرول وقت ما المستخدم بيعمل طلب)
     }
-  // render الطلب دايماً بعد Firebase sync
-  renderOrder();
   }catch(e){ console.log('firebase inventory load error',e); }
+}
+
+// ✅ إعادة بناء قائمة الطلب بأمان: بنحافظ على موضع السكرول والـ focus والكتابة الجارية
+// عشان ال re-render الدوري (كل 20 ثانية) ما يقطعش المستخدم وهو بيكتب كمية أو بيعمل سكرول
+function _safeRerenderOrder(){
+  var page = document.getElementById('page-order') || document.querySelector('.page.active') || document.getElementById('orderList');
+  var scrollEl = page && page.scrollHeight > page.clientHeight ? page : document.scrollingElement;
+  var scrollTop = scrollEl ? scrollEl.scrollTop : 0;
+  var active = document.activeElement;
+  var activeId = active && active.id;
+  var activeIsOrderInput = activeId && (activeId.indexOf('oq_')===0 || activeId.indexOf('ou_')===0);
+  // ✅ لو المستخدم لسه شغال على إدخال كمية، منأجلش الـ render خالص دلوقتي —
+  // نحاول تاني بعد ثانيتين بدل ما نمسح اللي بيكتبه فعليًا
+  if(activeIsOrderInput){
+    clearTimeout(window._pendingOrderRerender);
+    window._pendingOrderRerender = setTimeout(_safeRerenderOrder, 2000);
+    return;
+  }
+  renderOrder();
+  if(scrollEl) scrollEl.scrollTop = scrollTop;
+  if(activeId){
+    var el2 = document.getElementById(activeId);
+    if(el2) el2.focus();
+  }
 }
 
 // ══ STATS ══
@@ -2661,7 +2715,6 @@ function deleteOrderById(id){
 
 // ══ PASSWORD ══
 var ADMIN_PW = '1980';
-var ADMIN_PW2 = '1020';
 var MGR_REG_PW = '7632420'; // باسورد تسجيل MGR (مستقل عن باسورد الأدمن العادي)
 var pendingPage = null, pendingBtn = null;
 // كل صفحة ليها unlock منفصل - مش session مشتركة
@@ -2670,8 +2723,10 @@ var unlockedPages = {};
 function requirePw(page, btn){
   // لو MGR مسجل على الجهاز أو adminUnlocked محفوظ - افتح مباشرة من غير باسورد
   if(sessionStorage.getItem('sessionAdminUnlocked')==='1'){
-    if(page==='__mgr__'){ sessionStorage.setItem('mgrAuth','1'); _showMgrDrawer(); } else { _doGoPage(page, btn); }
-    return;
+    if(page==='__mgr__'){ /* MGR يحتاج mgrAuth مش admin */ } else { _doGoPage(page, btn); return; }
+  }
+  if(sessionStorage.getItem('mgrAuth')==='1'){
+    if(page==='__mgr__'){ _showMgrDrawer(); return; }
   }
   var _p = getDeviceProfile();
   if(_p && _p.role==='mgr'){
@@ -2681,8 +2736,7 @@ function requirePw(page, btn){
   }
   if(localStorage.getItem('adminUnlocked')==='1'){
     sessionStorage.setItem('sessionAdminUnlocked','1');
-    if(page==='__mgr__'){ sessionStorage.setItem('mgrAuth','1'); _showMgrDrawer(); } else { _doGoPage(page, btn); }
-    return;
+    if(page!=='__mgr__'){ _doGoPage(page, btn); return; }
   }
   pendingPage = page; pendingBtn = btn;
   document.getElementById('pwInput').value='';
@@ -2692,7 +2746,7 @@ function requirePw(page, btn){
 }
 function checkPw(){
   var v = document.getElementById('pwInput').value;
-  if(v === ADMIN_PW || v === ADMIN_PW2){
+  if(v === ADMIN_PW){
     document.getElementById('lockOverlay').classList.remove('open');
     localStorage.setItem('adminUnlocked','1');
     sessionStorage.setItem('sessionAdminUnlocked','1');
@@ -2716,7 +2770,7 @@ function checkPw(){
     }
     else if(pe){ sessionStorage.removeItem('pendingEdit'); _doOpenEdit(parseInt(pe)); }
     else if(ps){ sessionStorage.removeItem('pendingShelf'); _openShelfModal(parseInt(ps)); }
-    else if(pg === '__mgr__'){ sessionStorage.setItem('mgrAuth','1'); _showMgrDrawer(); }
+    else if(pg === '__mgr__'){ /* لا تفتح MGR بباسورد الأدمن العادي */ document.getElementById('pwErr').textContent='❌ باسورد غلط'; document.getElementById('pwInput').value=''; document.getElementById('pwInput').focus(); return; }
     else if(pg){ _doGoPage(pg, btn); }
   } else {
     document.getElementById('pwErr').textContent = '❌ باسورد غلط';
@@ -3492,7 +3546,7 @@ function handleQrPhotoSelected(e){
         ts: Date.now()
       }).then(function(){
         // الـ QR بيشير لنفس الموقع مع ?qr=ID
-        var viewUrl = 'https://kitchen1980.netlify.app/qr.html?id=' + photoId;
+        var viewUrl = 'https://1980centeralkitchen.github.io/1980-kitchen/qr.html?id=' + photoId;
         var qrImgUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=400x400&margin=8&data=' + encodeURIComponent(viewUrl);
         showQrGenOverlay('result', qrImgUrl, viewUrl);
       }).catch(function(err){
@@ -5515,6 +5569,11 @@ setInterval(checkDeviceBlock, 30000);
       var changed = false;
       snap.docChanges().forEach(function(change){
         var o = change.doc.data();
+        // ── normalize date لو Firestore Timestamp ──
+        if(o.date && typeof o.date === 'object'){
+          if(typeof o.date.toMillis === 'function') o.date = new Date(o.date.toMillis()).toISOString().slice(0,19);
+          else if(typeof o.date.seconds === 'number') o.date = new Date(o.date.seconds*1000).toISOString().slice(0,19);
+        }
         if(change.type === 'added' || change.type === 'modified'){
           if(deletedOrderIds.indexOf(o.id) !== -1) return;
           var idx = orderHistory.findIndex(function(x){ return x.id === o.id; });
