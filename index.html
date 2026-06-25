@@ -226,13 +226,13 @@ input::placeholder{color:rgba(255,255,255,.3);}
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
 <script>
-  const _fbApp = firebase.initializeApp({
-    apiKey: "AIzaSyAaERjbUSKqb_oTgce7TiH6PyGsG08QoTM",
-    authDomain: "center-kitchen.firebaseapp.com",
-    projectId: "center-kitchen",
-    storageBucket: "center-kitchen.firebasestorage.app",
-    messagingSenderId: "426328007122",
-    appId: "1:426328007122:web:2099092821b20f11a9e80b"
+
+    apiKey: "AIzaSyCDccUf1y56XmaSgWtKta_O3wbSsQPUHzk",
+    authDomain: "kitchen1980-28000.firebaseapp.com",
+    projectId: "kitchen1980-28000",
+    storageBucket: "kitchen1980-28000.firebasestorage.app",
+    messagingSenderId: "144998414793",
+    appId: "1:144998414793:web:7198a5d5159a1b57b39018"
   });
   window._db = firebase.firestore();
   window._storage = firebase.storage();
@@ -3493,7 +3493,7 @@ function handleQrPhotoSelected(e){
         ts: Date.now()
       }).then(function(){
         // الـ QR بيشير لنفس الموقع مع ?qr=ID
-        var viewUrl = 'https://1980centralkitchen.vercel.app/qr.html?id=' + photoId;
+        var viewUrl = 'https://kitchen1980.netlify.app/qr.html?id=' + photoId;
         var qrImgUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=400x400&margin=8&data=' + encodeURIComponent(viewUrl);
         showQrGenOverlay('result', qrImgUrl, viewUrl);
       }).catch(function(err){
