@@ -224,7 +224,7 @@ input::placeholder{color:rgba(255,255,255,.3);}
 <!-- Firebase compat (no module needed) -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
+<!-- storage not needed -->
 <script>
 
     apiKey: "AIzaSyCDccUf1y56XmaSgWtKta_O3wbSsQPUHzk",
@@ -235,7 +235,6 @@ input::placeholder{color:rgba(255,255,255,.3);}
     appId: "1:144998414793:web:7198a5d5159a1b57b39018"
   });
   window._db = firebase.firestore();
-  window._storage = firebase.storage();
   console.log('Firebase ready ✅');
 </script>
 </head>
@@ -2172,7 +2171,7 @@ function loadStaff(){
   if(!el) return;
   try{
     var db=window._db;
-    if(!db){ el.innerHTML='<div style="font-size:12px;color:rgba(179,217,245,.4);">لا يوجد اتصال بالسيرفر</div>'; return; }
+    if(!db){ setTimeout(loadStaff, 1000); return; }
     db.collection('cold_storage').doc('devices').get().then(function(snap){
       if(!el) return;
       if(!snap.exists || !snap.data().list || !snap.data().list.length){
